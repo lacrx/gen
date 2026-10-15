@@ -2,9 +2,9 @@ name: YIMBY Democrats San Diego
 slug: yimby-dems
 
 colors:
-  primary: "#4CAF50"       # green
-  secondary: "#FFEB3B"     # yellow
-  accent: "#2196F3"        # blue
+  primary: "#4CAF50"
+  secondary: "#FFEB3B"
+  accent: "#2196F3"
   background: "#FFFFFF"
   text: "#1a1a1a"
   text-light: "#FFFFFF"
@@ -16,7 +16,7 @@ fonts:
 
 logo:
   primary: "logo.png"
-  # drop your logo files in this directory
 
 social:
   instagram: "@yimbydems"
+  website: "https://yimbydems.com"

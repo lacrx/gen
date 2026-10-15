@@ -1,6 +1,12 @@
+assets/
 output/
 __pycache__/
 *.pyc
 .venv/
 *.egg-info/
 dist/
+build/
+.env
+.ruff_cache/
+node_modules/
+.pytest_cache/

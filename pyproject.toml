@@ -1,13 +1,13 @@
 [project]
 name = "gen"
 version = "0.1.0"
-description = "Generative media toolkit"
+description = "Generative media toolkit: Jinja2 HTML templates rendered to images via Playwright"
 requires-python = ">=3.11"
 dependencies = [
-    "jinja2>=3.1",
-    "playwright>=1.40",
-    "pillow>=10.0",
-    "pyyaml>=6.0",
+    "jinja2>=3.1,<4",
+    "playwright>=1.40,<2",
+    "pillow>=10.0,<12",
+    "pyyaml>=6.0,<7",
 ]
 
 [project.optional-dependencies]
@@ -15,3 +15,10 @@ dev = ["ruff", "pytest"]
 
 [project.scripts]
 gen = "gen.cli:main"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
