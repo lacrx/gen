@@ -1,0 +1,22 @@
+name: YIMBY Democrats San Diego
+slug: yimby-dems
+
+colors:
+  primary: "#4CAF50"       # green
+  secondary: "#FFEB3B"     # yellow
+  accent: "#2196F3"        # blue
+  background: "#FFFFFF"
+  text: "#1a1a1a"
+  text-light: "#FFFFFF"
+
+fonts:
+  display: "Titan One"
+  heading: "Montserrat"
+  body: "Open Sans"
+
+logo:
+  primary: "logo.png"
+  # drop your logo files in this directory
+
+social:
+  instagram: "@yimbydems"
