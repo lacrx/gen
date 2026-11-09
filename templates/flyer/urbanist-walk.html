@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Titan+One&family=Montserrat:wght@600;700;800;900&family=Open+Sans:wght@400;600;700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    width: {{ width }}px;
+    height: {{ height }}px;
+    font-family: 'Open Sans', sans-serif;
+    background: {{ brand.colors.primary }};
+    overflow: hidden;
+    position: relative;
+}
+
+.flyer {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 40px 40px 30px;
+}
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.title-block {
+    position: relative;
+}
+
+.sun-rays {
+    position: absolute;
+    top: -18px;
+    left: -5px;
+    width: 40px;
+    height: 40px;
+}
+
+.sun-rays span {
+    position: absolute;
+    background: {{ brand.colors.secondary }};
+    border-radius: 2px;
+}
+
+.sun-rays span:nth-child(1) { width: 4px; height: 16px; top: 0; left: 18px; transform: rotate(0deg); }
+.sun-rays span:nth-child(2) { width: 4px; height: 14px; top: 2px; left: 30px; transform: rotate(30deg); }
+.sun-rays span:nth-child(3) { width: 4px; height: 12px; top: 6px; left: 38px; transform: rotate(55deg); }
+.sun-rays span:nth-child(4) { width: 4px; height: 14px; top: 2px; left: 6px; transform: rotate(-30deg); }
+.sun-rays span:nth-child(5) { width: 4px; height: 12px; top: 6px; left: -4px; transform: rotate(-55deg); }
+
+.title {
+    font-family: 'Titan One', cursive;
+    font-size: 72px;
+    color: {{ brand.colors.text_light }};
+    line-height: 1.0;
+    text-shadow: 2px 3px 0 rgba(0,0,0,0.15);
+    position: relative;
+    z-index: 1;
+}
+
+.title-swoosh {
+    height: 8px;
+    background: {{ brand.colors.secondary }};
+    border-radius: 4px;
+    margin-top: -5px;
+    margin-left: -10px;
+    margin-right: -30px;
+    transform: rotate(-1.5deg);
+}
+
+.logo {
+    width: 120px;
+    height: auto;
+    margin-top: 10px;
+    flex-shrink: 0;
+}
+
+/* Date */
+.date {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    font-size: 22px;
+    color: {{ brand.colors.text_light }};
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    margin: 15px 0 20px;
+}
+
+/* Photo grid */
+.photo-grid {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+}
+
+.photo-main {
+    flex: 3;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.photo-main img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.photo-side {
+    flex: 2;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.photo-side img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Walk with section */
+.walk-with {
+    text-align: center;
+    padding: 25px 0 10px;
+}
+
+.walk-with-label {
+    font-family: 'Titan One', cursive;
+    font-size: 52px;
+    color: {{ brand.colors.text_light }};
+    margin-bottom: 15px;
+}
+
+.speakers {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+}
+
+.speaker {
+    text-align: center;
+}
+
+.speaker-photo {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    border: 5px solid {{ brand.colors.accent }};
+    overflow: hidden;
+    margin: 0 auto 10px;
+}
+
+.speaker-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.speaker-name {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    font-size: 22px;
+    color: {{ brand.colors.text_light }};
+}
+</style>
+</head>
+<body>
+<div class="flyer">
+    <div class="header">
+        <div class="title-block">
+            <div class="sun-rays">
+                <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="title">{{ title | default("North County") }}<br>{{ title_line2 | default("Urbanist Walk") }}</div>
+            <div class="title-swoosh"></div>
+        </div>
+        {% if brand.logo_path %}
+        <img class="logo" src="file://{{ brand.logo_path }}" alt="logo">
+        {% endif %}
+    </div>
+
+    <div class="date">{{ date | default("OCTOBER 18, 2026") }}</div>
+
+    <div class="photo-grid">
+        <div class="photo-main">
+            <img src="file://{{ photo_main }}" alt="{{ photo_main_alt | default('') }}">
+        </div>
+        <div class="photo-side">
+            <img src="file://{{ photo_side }}" alt="{{ photo_side_alt | default('') }}">
+        </div>
+    </div>
+
+    <div class="walk-with">
+        <div class="walk-with-label">Walk with:</div>
+        <div class="speakers">
+            {% for speaker in speakers %}
+            <div class="speaker">
+                <div class="speaker-photo">
+                    <img src="file://{{ speaker.photo }}" alt="{{ speaker.name }}">
+                </div>
+                <div class="speaker-name">{{ speaker.name }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+</body>
+</html>

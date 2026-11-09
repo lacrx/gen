@@ -5,6 +5,15 @@ import json
 import sys
 from pathlib import Path
 
+from gen.composite import composite_file
+from gen.pixel import (
+    contact_sheet,
+    load_sprite,
+    palette_from_image,
+    quantize_to_palette,
+    render_sprite,
+    trace,
+)
 from gen.render import generate
 
 
@@ -35,13 +44,71 @@ def main():
         "--height", type=int, default=1350, help="Viewport height in px (default: 1350)"
     )
 
+    comp = sub.add_parser(
+        "composite",
+        help="Drop photos into placeholder regions of an existing design",
+    )
+    comp.add_argument("base", help="Base image or PDF file with placeholder regions")
+    comp.add_argument("photos", nargs="+", help="Photos to place (largest placeholder first)")
+    comp.add_argument("--output", "-o", default="composite.png", help="Output filename (default: composite.png)")
+    comp.add_argument(
+        "--color",
+        help="Placeholder color as 'R,G,B' (e.g. '255,105,180' for pink). Auto-detects if omitted.",
+    )
+    comp.add_argument("--tolerance", type=int, default=60, help="Color matching tolerance (default: 60)")
+    comp.add_argument("--radius", type=int, default=20, help="Corner radius in px (default: 20)")
+    comp.add_argument("--dpi", type=int, default=300, help="PDF render DPI (default: 300)")
+
+    pixel = sub.add_parser("pixel", help="Render and convert pixel sprites")
+    psub = pixel.add_subparsers(dest="pixel_command")
+
+    p_render = psub.add_parser("render", help="Render one frame of a sprite")
+    p_render.add_argument("sprite", help="Sprite slug (sprites/<slug>/) or path to sprite.yaml")
+    p_render.add_argument("--frame", help="Frame name (default: the first frame defined)")
+    p_render.add_argument("--scale", type=int, default=8, help="Pixels per cell (default: 8)")
+    p_render.add_argument("--bg", help="Background as hex, e.g. '#F7F3EC' (default: transparent)")
+    p_render.add_argument("--svg", action="store_true", help="Write SVG instead of PNG")
+    p_render.add_argument("--output", "-o", help="Output filename (default: <name>-<frame>.<ext>)")
+
+    p_sheet = psub.add_parser("sheet", help="Render every frame to one contact sheet")
+    p_sheet.add_argument("sprite", help="Sprite slug or path to sprite.yaml")
+    p_sheet.add_argument("--scale", type=int, default=4, help="Pixels per cell (default: 4)")
+    p_sheet.add_argument("--columns", type=int, default=4, help="Frames per row (default: 4)")
+    p_sheet.add_argument("--bg", default="#F7F3EC", help="Sheet background (default: #F7F3EC)")
+    p_sheet.add_argument("--output", "-o", help="Output filename (default: <name>-sheet.png)")
+
+    p_trace = psub.add_parser("trace", help="Convert an image into an editable character map")
+    p_trace.add_argument("image", help="Source image")
+    p_trace.add_argument("--size", type=int, default=32, help="Grid size (default: 32)")
+    p_trace.add_argument("--sprite", help="Sprite slug or path to borrow the palette from")
+    p_trace.add_argument("--colors", type=int, default=6, help="Palette size if no --sprite given")
+    p_trace.add_argument("--bg", help="Background hex; cells nearest to it become transparent")
+    p_trace.add_argument("--output", "-o", help="Write a sprite.yaml here instead of printing")
+
+    p_quant = psub.add_parser("quantize", help="Force an image onto an exact palette")
+    p_quant.add_argument("image", help="Source image")
+    p_quant.add_argument("--sprite", help="Sprite slug or path to borrow the palette from")
+    p_quant.add_argument("--colors", type=int, default=6, help="Palette size if no --sprite given")
+    p_quant.add_argument("--output", "-o", default="quantized.png", help="Output filename")
+
+    p_pal = psub.add_parser("palette", help="Suggest a palette from an image")
+    p_pal.add_argument("image", help="Source image")
+    p_pal.add_argument("--colors", type=int, default=6, help="How many colours (default: 6)")
+
     args = parser.parse_args()
 
     if not args.command:
         parser.print_help()
         sys.exit(1)
 
-    if args.command == "render":
+    if args.command == "pixel":
+        if not getattr(args, "pixel_command", None):
+            pixel.print_help()
+            sys.exit(1)
+        _do_pixel(args)
+    elif args.command == "composite":
+        _do_composite(args)
+    elif args.command == "render":
         # Accept context as a file path or inline JSON
         ctx_arg = args.context
         ctx_path = Path(ctx_arg)
@@ -81,6 +148,114 @@ def main():
         except Exception as e:
             print(f"Error during render: {e}", file=sys.stderr)
             sys.exit(1)
+
+
+def _palette_for(args) -> dict:
+    """Palette from a named sprite, else suggested from the image itself."""
+    if getattr(args, "sprite", None):
+        return load_sprite(args.sprite).palette
+    return palette_from_image(args.image, args.colors)
+
+
+def _do_pixel(args):
+    import logging
+
+    from PIL import Image
+
+    from gen.pixel import OUTPUT_DIR, Sprite, save_sprite
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    try:
+        if args.pixel_command == "render":
+            out = render_sprite(
+                args.sprite,
+                frame=args.frame,
+                scale=args.scale,
+                background=args.bg,
+                output_name=args.output,
+                svg=args.svg,
+            )
+            print(f"Rendered: {out}")
+
+        elif args.pixel_command == "sheet":
+            sprite = load_sprite(args.sprite)
+            sheet = contact_sheet(
+                sprite, scale=args.scale, columns=args.columns, background=args.bg
+            )
+            out = OUTPUT_DIR / (args.output or f"{sprite.name}-sheet.png")
+            out.parent.mkdir(parents=True, exist_ok=True)
+            sheet.save(out)
+            print(f"Saved: {out} ({len(sprite.frame_names)} frames)")
+
+        elif args.pixel_command == "trace":
+            palette = _palette_for(args)
+            rows = trace(args.image, args.size, palette, background=args.bg)
+            if args.output:
+                sprite = Sprite(
+                    name=Path(args.image).stem,
+                    size=args.size,
+                    palette=palette,
+                    frames={"idle": rows},
+                )
+                print(f"Saved: {save_sprite(sprite, args.output)}")
+            else:
+                print("\n".join(rows))
+
+        elif args.pixel_command == "quantize":
+            palette = _palette_for(args)
+            result = quantize_to_palette(Image.open(args.image), list(palette.values()))
+            out = OUTPUT_DIR / args.output
+            out.parent.mkdir(parents=True, exist_ok=True)
+            result.save(out)
+            print(f"Saved: {out}")
+
+        elif args.pixel_command == "palette":
+            for char, value in palette_from_image(args.image, args.colors).items():
+                print(f'  "{char}": "{value}"')
+
+    except (FileNotFoundError, ValueError, KeyError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _do_composite(args):
+    import logging
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    color = None
+    if args.color:
+        try:
+            color = tuple(int(c.strip()) for c in args.color.split(","))
+            if len(color) != 3:
+                raise ValueError
+        except ValueError:
+            print("Error: --color must be 'R,G,B' (e.g. '255,105,180')", file=sys.stderr)
+            sys.exit(1)
+
+    for p in args.photos:
+        if not Path(p).is_file():
+            print(f"Error: photo not found: {p}", file=sys.stderr)
+            sys.exit(1)
+
+    try:
+        result = composite_file(
+            args.base,
+            args.photos,
+            args.output,
+            placeholder_color=color,
+            tolerance=args.tolerance,
+            corner_radius=args.radius,
+            dpi=args.dpi,
+        )
+        print(f"Saved: {result}")
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
