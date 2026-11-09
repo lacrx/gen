@@ -96,7 +96,10 @@ def _extract_boxes(
             continue
 
         boxes.append(box)
-        log.info("Placeholder %d: %dx%d at (%d,%d), fill=%.0f%%", len(boxes), bw, bh, box[0], box[1], fill_ratio * 100)
+        log.info(
+            "Placeholder %d: %dx%d at (%d,%d), fill=%.0f%%",
+            len(boxes), bw, bh, box[0], box[1], fill_ratio * 100,
+        )
 
     boxes.sort(key=lambda b: (b[2] - b[0]) * (b[3] - b[1]), reverse=True)
     return boxes

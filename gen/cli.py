@@ -50,12 +50,16 @@ def main():
     )
     comp.add_argument("base", help="Base image or PDF file with placeholder regions")
     comp.add_argument("photos", nargs="+", help="Photos to place (largest placeholder first)")
-    comp.add_argument("--output", "-o", default="composite.png", help="Output filename (default: composite.png)")
+    comp.add_argument(
+        "--output", "-o", default="composite.png", help="Output filename (default: composite.png)"
+    )
     comp.add_argument(
         "--color",
         help="Placeholder color as 'R,G,B' (e.g. '255,105,180' for pink). Auto-detects if omitted.",
     )
-    comp.add_argument("--tolerance", type=int, default=60, help="Color matching tolerance (default: 60)")
+    comp.add_argument(
+        "--tolerance", type=int, default=60, help="Color matching tolerance (default: 60)"
+    )
     comp.add_argument("--radius", type=int, default=20, help="Corner radius in px (default: 20)")
     comp.add_argument("--dpi", type=int, default=300, help="PDF render DPI (default: 300)")
 
@@ -95,6 +99,32 @@ def main():
     p_pal.add_argument("image", help="Source image")
     p_pal.add_argument("--colors", type=int, default=6, help="How many colours (default: 6)")
 
+    gener = sub.add_parser(
+        "generate",
+        help="Generate sprite candidates via Retro Diffusion (costs credits)",
+    )
+    gsub = gener.add_subparsers(dest="generate_command")
+
+    gsub.add_parser("credits", help="Show the remaining API balance")
+    gsub.add_parser("styles", help="List available styles with their size limits")
+
+    g_sprite = gsub.add_parser("sprite", help="Generate sprite candidates into output/")
+    g_sprite.add_argument("prompt", help="What to draw")
+    g_sprite.add_argument("--refs", nargs="*", default=[], help="Reference photos (max 9)")
+    g_sprite.add_argument("--palette", help="Sprite slug whose palette constrains the output")
+    g_sprite.add_argument("--size", type=int, default=64, help="Square size, 12-512 (default: 64)")
+    g_sprite.add_argument("--count", type=int, default=4, help="How many candidates (default: 4)")
+    g_sprite.add_argument(
+        "--style", default="rd_pro__default", help="Style id (default: rd_pro__default)"
+    )
+    g_sprite.add_argument("--seed", type=int, help="Seed for repeatable output")
+    g_sprite.add_argument("--prefix", default="candidate", help="Output filename prefix")
+    g_sprite.add_argument(
+        "--yes",
+        action="store_true",
+        help="Actually spend credits. Without this the cost is estimated and nothing runs.",
+    )
+
     args = parser.parse_args()
 
     if not args.command:
@@ -106,6 +136,11 @@ def main():
             pixel.print_help()
             sys.exit(1)
         _do_pixel(args)
+    elif args.command == "generate":
+        if not getattr(args, "generate_command", None):
+            gener.print_help()
+            sys.exit(1)
+        _do_generate(args)
     elif args.command == "composite":
         _do_composite(args)
     elif args.command == "render":
@@ -214,6 +249,86 @@ def _do_pixel(args):
             for char, value in palette_from_image(args.image, args.colors).items():
                 print(f'  "{char}": "{value}"')
 
+    except (FileNotFoundError, ValueError, KeyError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _do_generate(args):
+    """Retro Diffusion is imported lazily: it is the one module that calls a model."""
+    import logging
+
+    from gen.retrodiffusion import (
+        RetroDiffusionError,
+        build_payload,
+        credits,
+        estimate,
+        load_api_key,
+        save_images,
+        styles,
+        submit,
+    )
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    try:
+        key = load_api_key()
+
+        if args.generate_command == "credits":
+            info = credits(key)
+            print(f"Balance: {info.get('balance')} (credits: {info.get('credits')})")
+            return
+
+        if args.generate_command == "styles":
+            for style in styles(key):
+                sid = style.get("style_id") or style.get("id") or "?"
+                print(f"  {sid:28} {style.get('name', '')}")
+            return
+
+        palette = None
+        if args.palette:
+            palette = list(load_sprite(args.palette).palette.values())
+
+        for ref in args.refs:
+            if not Path(ref).is_file():
+                print(f"Error: reference not found: {ref}", file=sys.stderr)
+                sys.exit(1)
+
+        payload = build_payload(
+            prompt=args.prompt,
+            style=args.style,
+            width=args.size,
+            height=args.size,
+            num_images=args.count,
+            references=args.refs,
+            palette=palette,
+            seed=args.seed,
+        )
+
+        cost = estimate(payload, key)
+        price = cost.get("balance_cost")
+        remaining = cost.get("remaining_balance")
+        print(
+            f"Estimated cost: {price} for {args.count} image(s) at {args.size}x{args.size} "
+            f"({args.style}). Balance: {remaining}"
+        )
+
+        if not args.yes:
+            print("Nothing generated. Re-run with --yes to spend credits.")
+            return
+
+        result = submit(payload, key, confirm=True)
+        paths = save_images(result, prefix=args.prefix)
+        if not paths:
+            print("Warning: no images returned", file=sys.stderr)
+        for path in paths:
+            print(f"Saved: {path}")
+        print(f"Spent: {result.get('balance_cost')} | remaining: {result.get('remaining_balance')}")
+        print("Bring the best one in with: gen pixel trace <file> --size N --sprite <slug>")
+
+    except RetroDiffusionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
     except (FileNotFoundError, ValueError, KeyError) as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
